@@ -1,5 +1,8 @@
 # RichStokoe.AgentTools
 
+[![NuGet](https://img.shields.io/nuget/v/RichStokoe.AgentTools)](https://www.nuget.org/packages/RichStokoe.AgentTools)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/RichStokoe.AgentTools)](https://www.nuget.org/packages/RichStokoe.AgentTools)
+
 A collection of ready-made tools for AI agents built with [Microsoft Agent Framework (MAF)](https://learn.microsoft.com/en-us/agent-framework/overview/). Drop them into any MAF agent to give it real-world capabilities without writing boilerplate.
 
 ## Installation
