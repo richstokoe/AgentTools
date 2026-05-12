@@ -25,7 +25,7 @@ public class AgentRunner(IChatClient chatClient, ToolManager toolManager)
     private readonly AIAgent _agent = chatClient.AsAIAgent(
         name: "MyAgent",
         instructions: "You are a helpful assistant.",
-        tools: toolManager.GetTools()
+        tools: toolManager.GetTools(typeFilter: AgentToolTypes.ReadWrite)
     );
 }
 ```
@@ -37,19 +37,28 @@ public class AgentRunner(IChatClient chatClient, ToolManager toolManager)
 `GetTools` accepts optional filters so you can pass only a relevant subset to an agent:
 
 ```csharp
-// All tools whose name contains "Weather" (case-insensitive)
-toolManager.GetTools(namePattern: "*Weather*")
-
 // All read-only tools
 toolManager.GetTools(typeFilter: AgentToolTypes.Read)
 
-// Read tools whose name starts with "Get"
+// Read and write tools (excludes Dangerous) — convenience composite
+toolManager.GetTools(typeFilter: AgentToolTypes.ReadWrite)
+
+// Explicitly include Dangerous tools (e.g. BashTool)
+toolManager.GetTools(typeFilter: AgentToolTypes.ReadWrite | AgentToolTypes.Dangerous)
+
+// Every tool in every category — convenience composite
+toolManager.GetTools(typeFilter: AgentToolTypes.All)
+
+// All tools whose name contains "Weather" (case-insensitive)
+toolManager.GetTools(namePattern: "*Weather*", typeFilter: AgentToolTypes.Read)
+
+// Tools whose name starts with "Get", restricted to read-only
 toolManager.GetTools(namePattern: "Get_*", typeFilter: AgentToolTypes.Read)
 ```
 
 `namePattern` supports `*` (any sequence of characters) and `?` (any single character) wildcards. The pattern is matched against the tool's `Name` if one was set on the attribute, otherwise against the method name.
 
-`typeFilter` is a flags mask — pass `AgentToolTypes.Read | AgentToolTypes.Write` to include all classified tools. Tools marked `AgentToolTypes.None` (unclassified) are only returned when no type filter is specified.
+`typeFilter` is a **required** opt-in — passing `AgentToolTypes.None` (the default) returns an empty list. This prevents accidentally handing a dangerous tool to an agent that does not need it. Use `AgentToolTypes.ReadWrite` for the common case of read/write tools without dangerous ones, or `AgentToolTypes.All` to include everything.
 
 ---
 
@@ -94,9 +103,37 @@ Resolves an IP address to a geographic location via [ip-api.com](https://ip-api.
 |---|---|
 | `Add_Numbers` | Adds a sequence of decimal numbers and returns the sum |
 
+#### BashTool
+
+Executes shell commands and returns stdout, stderr, and the exit code. Uses `zsh` on macOS/Linux and `cmd.exe` on Windows. Commands time out after 60 seconds.
+
+> **Classified `Dangerous`** — not returned by `GetTools` unless `AgentToolTypes.Dangerous` is included in the type filter.
+
+| Tool | Description |
+|---|---|
+| `RunCommand` | Runs a shell command and returns combined stdout, stderr (labelled `[stderr]`), and exit code if non-zero |
+
+#### FileTools
+
+Reads and writes files on the local filesystem. Parent directories are created automatically on write. Not tagged with `[AgentTool]` — register manually or add the attribute to enable `ToolManager` discovery.
+
+| Tool | Description |
+|---|---|
+| `ReadFile` | Returns the full text content of a file, or an error if the file does not exist |
+| `WriteFile` | Creates or overwrites a file with the given content |
+| `AppendToFile` | Appends text to a file, creating it if it does not exist |
+
 ---
 
 ### Web
+
+#### WebFetchTool
+
+Fetches the content of a URL via HTTP GET. For HTML pages, `<script>` and `<style>` blocks are removed entirely before tags are stripped, returning clean plain text. Non-2xx responses are returned as an error message. Not tagged with `[AgentTool]` — register manually or add the attribute to enable `ToolManager` discovery.
+
+| Tool | Description |
+|---|---|
+| `FetchUrl` | Returns the plain-text content of a URL, truncated to `maxLength` characters (default 8,000) |
 
 #### WebSearchTools
 
@@ -157,7 +194,7 @@ public static class MyTools
 | Property | Type | Description |
 |---|---|---|
 | `Name` | `string?` | Override the tool name exposed to the model. Defaults to the method name. |
-| `Type` | `AgentToolTypes` | Classify the tool as `Read`, `Write`, or `Read \| Write`. Defaults to `None`. |
+| `Type` | `AgentToolTypes` | Classify the tool as `Read`, `Write`, `Dangerous`, or a combination. Defaults to `None` (never returned by `GetTools`). |
 
 No registration required — just ensure the assembly is loaded and restart.
 

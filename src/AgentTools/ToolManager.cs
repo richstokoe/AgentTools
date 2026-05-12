@@ -17,10 +17,14 @@ public class ToolManager
     /// <param name="typeFilter">
     /// Flags mask to filter by tool type. Only tools whose <see cref="AgentToolAttribute.Type"/>
     /// shares at least one flag with <paramref name="typeFilter"/> are included.
-    /// When <see cref="AgentToolTypes.None"/>, no type filtering is applied.
+    /// Must be specified — passing <see cref="AgentToolTypes.None"/> (the default) returns an
+    /// empty list, forcing callers to explicitly opt in to each category of tool.
     /// </param>
     public IList<AITool> GetTools(string? namePattern = null, AgentToolTypes typeFilter = AgentToolTypes.None)
     {
+        if (typeFilter == AgentToolTypes.None)
+            return [];
+
         var nameRegex = namePattern is not null ? GlobToRegex(namePattern) : null;
 
         var tools = new List<AITool>();
@@ -38,7 +42,7 @@ public class ToolManager
             if (nameRegex is not null && !nameRegex.IsMatch(toolName))
                 continue;
 
-            if (typeFilter != AgentToolTypes.None && (attr.Type & typeFilter) == AgentToolTypes.None)
+            if ((attr.Type & typeFilter) == AgentToolTypes.None)
                 continue;
 
             var tool = AIFunctionFactory.Create(method.CreateDelegate(CreateDelegateType(method)), toolName);

@@ -4,59 +4,75 @@ public class ToolManagerTests
 {
     private readonly ToolManager _manager = new();
 
+    // --- Opt-in: no type filter → no tools ---
+
     [Fact]
-    public void GetTools_NoFilter_ReturnsAllTools()
+    public void GetTools_NoFilter_ReturnsEmpty()
     {
-        var tools = _manager.GetTools();
-        Assert.NotEmpty(tools);
+        Assert.Empty(_manager.GetTools());
     }
 
     [Fact]
-    public void GetTools_ExactNameMatch_ReturnsSingleTool()
+    public void GetTools_NamePatternWithNoTypeFilter_ReturnsEmpty()
     {
-        var tools = _manager.GetTools("Add_Numbers");
+        // Name pattern alone is not enough — type must be opted into
+        Assert.Empty(_manager.GetTools("RunCommand"));
+        Assert.Empty(_manager.GetTools("Add_Numbers"));
+        Assert.Empty(_manager.GetTools("*"));
+    }
+
+    // --- Dangerous type ---
+
+    [Fact]
+    public void GetTools_DangerousFilter_ReturnsBashTool()
+    {
+        var tools = _manager.GetTools(typeFilter: AgentToolTypes.Dangerous);
+        Assert.Contains(tools, t => t.Name == "RunCommand");
+    }
+
+    [Fact]
+    public void GetTools_DangerousFilter_ExcludesUnclassifiedTools()
+    {
+        var tools = _manager.GetTools(typeFilter: AgentToolTypes.Dangerous);
+        Assert.DoesNotContain(tools, t => t.Name == "Add_Numbers");
+    }
+
+    [Fact]
+    public void GetTools_ExactNameAndDangerousType_ReturnsSingleTool()
+    {
+        var tools = _manager.GetTools("RunCommand", AgentToolTypes.Dangerous);
         Assert.Single(tools);
-        Assert.Equal("Add_Numbers", tools[0].Name);
+        Assert.Equal("RunCommand", tools[0].Name);
     }
 
     [Fact]
-    public void GetTools_WildcardPattern_ReturnsMatchingTools()
+    public void GetTools_WrongNameAndDangerousType_ReturnsEmpty()
     {
-        var tools = _manager.GetTools("Get_*");
+        Assert.Empty(_manager.GetTools("Nonexistent_XYZ", AgentToolTypes.Dangerous));
+    }
+
+    // --- Read type (no tools currently tagged Read) ---
+
+    [Fact]
+    public void GetTools_ReadFilter_ReturnsEmpty_WhenNoToolsTaggedRead()
+    {
+        Assert.Empty(_manager.GetTools(typeFilter: AgentToolTypes.Read));
+    }
+
+    // --- Combined flags ---
+
+    [Fact]
+    public void GetTools_ReadOrDangerousFilter_IncludesBashTool()
+    {
+        var tools = _manager.GetTools(typeFilter: AgentToolTypes.Read | AgentToolTypes.Dangerous);
+        Assert.Contains(tools, t => t.Name == "RunCommand");
+    }
+
+    [Fact]
+    public void GetTools_WildcardPatternAndDangerousType_FiltersCorrectly()
+    {
+        var tools = _manager.GetTools("Run*", AgentToolTypes.Dangerous);
         Assert.NotEmpty(tools);
-        Assert.All(tools, t => Assert.StartsWith("Get_", t.Name));
-    }
-
-    [Fact]
-    public void GetTools_NoMatchPattern_ReturnsEmpty()
-    {
-        var tools = _manager.GetTools("Nonexistent_Tool_XYZ");
-        Assert.Empty(tools);
-    }
-
-    [Fact]
-    public void GetTools_ReadTypeFilter_IncludesFetchUrl()
-    {
-        var tools = _manager.GetTools(typeFilter: AgentToolTypes.Read);
-        Assert.Contains(tools, t => t.Name == "Fetch_Url");
-    }
-
-    [Fact]
-    public void GetTools_ReadTypeFilter_ExcludesUnclassifiedTools()
-    {
-        var allTools = _manager.GetTools();
-        var readTools = _manager.GetTools(typeFilter: AgentToolTypes.Read);
-
-        // At least one tool has no type classification so the read-filtered set is smaller
-        Assert.True(readTools.Count < allTools.Count);
-    }
-
-    [Fact]
-    public void GetTools_PatternAndTypeFilter_BothApplied()
-    {
-        // Fetch_Url is tagged Read and matches "Fetch_*"
-        var tools = _manager.GetTools("Fetch_*", AgentToolTypes.Read);
-        Assert.Single(tools);
-        Assert.Equal("Fetch_Url", tools[0].Name);
+        Assert.All(tools, t => Assert.StartsWith("Run", t.Name));
     }
 }
